@@ -1,0 +1,178 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Keyboard, TextInput } from 'react-native';
+import {
+  int,
+  isValidDate,
+  formatYearDigits,
+  getOnlyNumber,
+  getDateDefault,
+  daysInMonth,
+  dateInRange,
+} from './utils';
+import Input from './Input';
+import type { DateFieldProps } from './types';
+import styles from './styles';
+
+type State = {
+  date: string;
+  month: string;
+  year: string;
+};
+
+const DateMonthYearField: React.FC<DateFieldProps> = (props) => {
+  const {
+    labelDate = 'Date',
+    labelMonth = 'Month',
+    labelYear = 'Year',
+    editable = true,
+    autoFocus,
+    value,
+    defaultValue,
+    hideDate,
+    maximumDate,
+    minimumDate,
+    handleErrors,
+    onSubmit,
+    testID,
+    containerStyle,
+    styleInput,
+    styleInputYear,
+    placeholderTextColor,
+  } = props;
+
+  const [state, setState] = useState<State>({
+    ...getDateDefault(defaultValue),
+  });
+
+  const refDate = useRef<TextInput | null>(null);
+  const refMonth = useRef<TextInput | null>(null);
+  const refYear = useRef<TextInput | null>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      refDate.current?.focus();
+    }
+  }, [autoFocus]);
+
+  useEffect(() => {
+    if (
+      JSON.stringify(getDateDefault(value)) !== JSON.stringify(getDateDefault(state))
+    ) {
+      const { date, month, year } = getDateDefault(value);
+      const nextState = {
+        date: date ? date.padStart(2, '0') : '',
+        month: month ? month.padStart(2, '0') : '',
+        year,
+      };
+      setState(nextState);
+    }
+  }, [value, state]);
+
+  const onChangeDate = (value: string) => {
+    const date = getOnlyNumber(int(value) > 31 ? '31' : value);
+    setState({ ...state, date });
+    if (date.length === 2) {
+      refMonth.current?.focus();
+    }
+  };
+
+  const onChangeMonth = (value: string) => {
+    const month = getOnlyNumber(int(value) > 12 ? '12' : value);
+    const updatedState = {
+      ...state,
+      month,
+      date: daysInMonth(state),
+    };
+    setState(updatedState);
+    if (month.length === 2) {
+      refYear.current?.focus();
+    }
+  };
+
+  const onChangeYear = (value: string) => {
+    const year = getOnlyNumber(value);
+    setState({ ...state, year });
+    if (year.length === 4) {
+      Keyboard.dismiss();
+    }
+  };
+
+  const onBlur = () => {
+    const current = { ...state };
+    if (int(current.date) === 0 || hideDate) {
+      current.date = '01';
+    }
+    if (current.date.length === 1) {
+      current.date = current.date.padStart(2, '0');
+    }
+    if (int(current.month) === 0) {
+      current.month = '01';
+    }
+    if (current.month.length === 1) {
+      current.month = current.month.padStart(2, '0');
+    }
+    if (int(current.year) === 0) {
+      current.year = `${new Date().getFullYear()}`;
+    }
+    if (current.year.length > 1 && current.year.length < 4) {
+      current.year = `${formatYearDigits(int(current.year))}`;
+    }
+    const value = new Date(
+      int(current.year),
+      int(current.month) - 1,
+      int(current.date)
+    );
+    if (current.year) {
+      if ((minimumDate || maximumDate) && !dateInRange(value, minimumDate, maximumDate)) {
+        handleErrors && handleErrors();
+        setState({ date: '', month: '', year: '' });
+      } else {
+        if (isValidDate(value)) {
+          onSubmit && onSubmit(value);
+        }
+        setState({ ...current });
+      }
+    }
+  };
+
+  return (
+    <View {...{ testID }} style={[styles.container, containerStyle]}>
+      {!hideDate && (
+        <Input
+          ref={refDate}
+          value={state.date}
+          placeholder={labelDate}
+          style={styleInput}
+          onChangeText={onChangeDate}
+          onSubmitEditing={() => refMonth.current?.focus()}
+          onBlur={onBlur}
+          {...{ editable, placeholderTextColor }}
+        />
+      )}
+      <Input
+        ref={refMonth}
+        value={state.month}
+        placeholder={labelMonth}
+        style={styleInput}
+        onChangeText={onChangeMonth}
+        onSubmitEditing={() => refYear.current?.focus()}
+        onBlur={onBlur}
+        {...{ editable, placeholderTextColor }}
+      />
+      <Input
+        ref={refYear}
+        value={state.year}
+        maxLength={4}
+        returnKeyType="done"
+        placeholder={labelYear}
+        style={[styleInput, styleInputYear]}
+        onChangeText={onChangeYear}
+        onSubmitEditing={() => Keyboard.dismiss()}
+        onBlur={onBlur}
+        {...{ editable, placeholderTextColor }}
+      />
+    </View>
+  );
+};
+
+export default DateMonthYearField;
